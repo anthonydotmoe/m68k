@@ -1,0 +1,227 @@
+/* # Developer notes
+
+- Symbols that start with a double underscore (__) are considered "private"
+
+- Symbols that start with a single underscore (_) are considered "semi-public";
+  they can be overridden in a user linker script, but should not be referred
+  user code (e.g. `extern "C" { static mut __sbss }`).
+
+- `EXTERN` forces the linker to keep a symbol in the final binary. We use this
+  to make sure a symbol is not dropped if it appears in or near the front of the
+  linker arguments and "it's not needed" by any of the preceding objects
+  (linker arguments)
+
+- On alignment: 
+*/
+
+/* Provides information about the memory layout of the device */
+/* This will be provided by the user (see `memory.x`) or by a Board Support Crate */
+INCLUDE memory.x
+
+/* # Entry point = reset vector */
+EXTERN(__RESET_VECTOR);
+EXTERN(Reset);
+ENTRY(Reset);
+
+/* # Exception vectors */
+/* This is effectively weak aliasing at the linker level */
+/* The user can ovveride any of these aliases by defining the corresponding
+symbol them selves (cf. the `exception!` macro) */
+EXTERN(__EXCEPTIONS); /* depends on all these PROVIDED symbols */
+
+EXTERN(DefaultHandler);
+
+PROVIDE(BusError = DefaultHandler);
+PROVIDE(AddressError = DefaultHandler);
+PROVIDE(IllegalInstruction = DefaultHandler);
+PROVIDE(ZeroDivide = DefaultHandler);
+PROVIDE(CHKInstruction = DefaultHandler);
+PROVIDE(TRAPVInstruction = DefaultHandler);
+PROVIDE(PrivilegeViolation = DefaultHandler);
+PROVIDE(Trace = DefaultHandler);
+PROVIDE(Line1010Emulator = DefaultHandler);
+PROVIDE(Line1111Emulator = DefaultHandler);
+PROVIDE(FormatError = DefaultHandler);
+
+PROVIDE(DefaultHandler = DefaultHandler_);
+
+/* # Interrupt vectors */
+EXTERN(__INTERRUPTS); /* `static` variable similar to `__EXCEPTIONS` */
+
+/* # Pre-initialization function */
+/* If the user overrides this using the `pre_init!` macro or by creating a
+   `__pre_init` function, then the function this points to will be called before
+   the RAM is initialized. */
+PROVIDE(__pre_init = DefaultPreInit);
+
+/* # Sections */
+SECTIONS
+{
+    PROVIDE(_ram_start = ORIGIN(RAM));
+    PROVIDE(_ram_end = ORIGIN(RAM) + LENGTH(RAM));
+    PROVIDE(_stack_start = _ram_end);
+    
+    /* ## Sections in ROM */
+    /* ### Vector table */
+    .vector_table ORIGIN(ROM) :
+    {
+        __vector_table = .;
+
+        /* Initial Supervisor Stack Pointer (SSP) value.
+           Mask the bottom two bits to force 4-byte alignment.
+        */
+        LONG(_stack_start & 0xFFFFFFFC)
+        
+        /* Reset vector */
+        KEEP(*(.vector_table.reset_vector)); /* this is the `__RESET_VECTOR` symbol */
+        
+        /* Exceptions */
+        KEEP(*(.vector_table.exceptions)); /* this is the `__EXCEPTIONS` symbol */
+        
+        /* Interrupts */
+        KEEP(*(.vector_table.interrupts)); /* This is the `__INTERRUPTS` symbol */
+    } > ROM
+    
+    PROVIDE(_stext = ADDR(.vector_table) + SIZEOF(.vector_table));
+
+    /* ### .text */
+    .text _stext :
+    {
+        __stext = .;
+        *(.Reset);
+
+        *(.text .text.*);
+
+        . = ALIGN(4);
+        __etext = .;
+    } > ROM
+    
+    /* ### .rodata */
+    .rodata : ALIGN(4)
+    {
+        . = ALIGN(4);
+        __srodata = .;
+        *(.rodata .rodata.*);
+
+        /* 4-byte align the end (VMA) of this section.
+           This is required by LLD to ensure the LMA of the following .data
+           section will have the correct alignment. */
+        . = ALIGN(4);
+        __erodata = .;
+    } > ROM
+    
+    /* ## Sections in RAM */
+    /* ### .data */
+    .data : ALIGN(4)
+    {
+        . = ALIGN(4);
+        __sdata = .;
+        *(.data .data.*);
+        . = ALIGN(4); /* 4-byte align the end (VMA) of this section */
+    } > RAM AT>ROM
+    /* Allow sections from user `memory.x` injected using `INSERT AFTER .data`
+     * to use the .data loading mechanism by pushing __edata. Note: do not
+     * change output region or load region in those user sections! */
+    . = ALIGN(4);
+    __edata = .;
+
+    /* LMA of .data */
+    __sidata = LOADADDR(.data);
+    
+    /* ### .bss */
+    .bss (NOLOAD) : ALIGN(4)
+    {
+        . = ALIGN(4);
+        __sbss = .;
+        *(.bss .bss.*);
+        *(COMMON); /* Uninitialized C statics */
+        . = ALIGN(4); /* 4-byte align the end (VMA) of this section */
+    } > RAM
+    /* Allow sections from user `memory.x` injected using `INSERT AFTER .bss` to
+     * use the .data loading mechanism by pushing __ebss. Note: do not change
+     * output region or load region in those user sections! */
+    . = ALIGN(4);
+    __ebss = .;
+    
+    /* ### .uninit */
+    .uninit (NOLOAD) : ALIGN(4)
+    {
+        . = ALIGN(4);
+        __suninit = .;
+        *(.uninit .uninit.*);
+        . = ALIGN(4);
+        __euninit = .;
+    } > RAM
+    
+    /* Place the heap right after `.uninit` in RAM */
+    PROVIDE(__sheap = __euninit);
+    
+    /* ## .got */
+    /* Dynamic relocations are unsupported. This section is only used to detect
+     * relocatable code in the input files and raise an error if relocatable
+     * code is found */
+    .got (NOLOAD) :
+    {
+        KEEP(*(.got .got.*));
+    }
+}
+/* Do not exceed this mark in the error messages below                                 | */
+/* # Alignment checks */
+ASSERT(ORIGIN(ROM) % 4 == 0, "
+ERROR(m68k-rt): the start of the ROM region must be 4-byte aligned");
+
+ASSERT(ORIGIN(RAM) % 4 == 0, "
+ERROR(m68k-rt): the start of the RAM region must be 4-byte aligned");
+
+ASSERT(__sdata % 4 == 0 && __edata % 4 == 0, "
+BUG(m68k-rt): .data is not 4-byte aligned");
+
+ASSERT(__sidata % 4 == 0, "
+BUG(m68k-rt): the LMA of .data is not 4-byte aligned");
+
+ASSERT(__sbss % 4 == 0 && __ebss % 4 == 0, "
+BUG(m68k-rt): .bss is not 4-byte aligned");
+
+ASSERT(__sheap % 4 == 0, "
+BUG(m68k-rt): start of .heap is not 4-byte aligned");
+
+ASSERT(_stack_start % 4 == 0, "
+ERROR(m68k-rt): stack start address is not 8-byte aligned.
+If you have set _stack_start, check it's set to an address which is a multiple of 8 bytes.
+If you haven't, stack starts at the end of RAM by default. Check that both RAM
+origin and length are set to multiples of 8 in the `memory.x` file.");
+
+/* # Position checks */
+
+/* ## .vector_table */
+ASSERT(__reset_vector == ADDR(.vector_table) + 0x4, "
+BUG(m68k-rt): the reset vector is missing");
+
+ASSERT(__eexceptions == ADDR(.vector_table) + 0x40, "
+BUG(m68k-rt): the exception vectors are missing");
+
+ASSERT(SIZEOF(.vector_table) > 0x40, "
+ERROR(m68k-rt): The interrupt vectors are missing.
+Possible solutions, from most likely to less likely:
+- Link to a svd2rust generated device crate
+- Check that you actually use the device/hal/bsp crate in your code
+- Disable the 'device' feature of m68k-rt to build a generic application (a dependency
+may be enabling it)
+- Supply the interrupt handlers yourself. Check the documentation for details.");
+
+/* ## .text */
+ASSERT(ADDR(.vector_table) + SIZEOF(.vector_table) <= _stext, "
+ERROR(m68k-rt): The .text section can't be placed inside the .vector_table section
+Set _stext to an address greater than the end of .vector_table (See output of `nm`)");
+
+ASSERT(_stext + SIZEOF(.text) < ORIGIN(ROM) + LENGTH(ROM), "
+ERROR(m68k-rt): The .text section must be placed inside the ROM memory.
+Set _stext to an address smaller than 'ORIGIN(ROM) + LENGTH(ROM)'");
+
+/* # Other checks */
+ASSERT(SIZEOF(.got) == 0, "
+ERROR(m68k-rt): .got section detected in the input object files
+Dynamic relocations are not supported. If you are linking to C code compiled using
+the 'cc' crate then modify your build script to compile the C code _without_
+the -fPIC flag. See the documentation of the `cc::Build.pic` method for details.");
+/* Do not exceed this mark in the error messages above                                 | */

@@ -1,0 +1,6 @@
+[target.m68k-unknown-none-elf]
+rustflags = [
+    # LLD (shipped with the Rust toolchain) is used as the default linker
+    "-C", "link-arg=-Tlink.x",
+]
+linker = "rust-lld"

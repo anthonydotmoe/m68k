@@ -1,0 +1,20 @@
+[package]
+authors = [
+    "Anthony <anthony@anthony.moe"
+]
+categories = ["embedded", "no-std"]
+name = "m68k-rt"
+autoexamples = true
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+m68k-rt-macros = { path = "macros", version = "0.1.0" }
+
+[dev-dependencies]
+m68k = { version = "0.1.0", path = ".." }
+panic-halt = "0.2.0"
+# m68k-semihosting??
+
+[build]
+target = "../target.json"
