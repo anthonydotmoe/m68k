@@ -22,6 +22,3 @@ members = [
 targets = [
     "m68000-none-abi"
 ]
-
-[build]
-target = "target.json"

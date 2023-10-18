@@ -217,3 +217,57 @@ fn check_attr_whitelist(attrs: &[Attribute], caller: WhiteListCaller) -> Result<
 fn eq(attr: &Attribute, name: &str) -> bool {
     attr.style == AttrStyle::Outer && attr.path().is_ident(name)
 }
+
+#[proc_macro_attribute]
+pub fn pre_init(args: TokenStream, input: TokenStream) -> TokenStream {
+    let f = parse_macro_input!(input as ItemFn);
+
+    // check the function signature
+    let valid_signature = f.sig.constness.is_none()
+        && f.vis == Visibility::Inherited
+        && f.sig.unsafety.is_some()
+        && f.sig.abi.is_none()
+        && f.sig.inputs.is_empty()
+        && f.sig.generics.params.is_empty()
+        && f.sig.generics.where_clause.is_none()
+        && f.sig.variadic.is_none()
+        && match f.sig.output {
+            ReturnType::Default => true,
+            ReturnType::Type(_, ref ty) => match **ty {
+                Type::Tuple(ref tuple) => tuple.elems.is_empty(),
+                _ => false,
+            },
+        };
+
+    if !valid_signature {
+        return parse::Error::new(
+            f.span(),
+            "`#[pre_init]` function must have signature `unsafe fn()`",
+        )
+        .to_compile_error()
+        .into();
+    }
+
+    if !args.is_empty() {
+        return parse::Error::new(Span::call_site(), "This attribute accepts no arguments")
+            .to_compile_error()
+            .into();
+    }
+
+    if let Err(error) = check_attr_whitelist(&f.attrs, WhiteListCaller::PreInit) {
+        return error;
+    }
+
+    // XXX should we blacklist other attributes?
+    let attrs = f.attrs;
+    let ident = f.sig.ident;
+    let block = f.block;
+
+    quote!(
+        #[export_name = "__pre_init"]
+        #[allow(missing_docs)]  // we make a private fn public, which can trigger this lint
+        #(#attrs)*
+        pub unsafe fn #ident() #block
+    )
+    .into()
+}

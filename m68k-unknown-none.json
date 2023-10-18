@@ -2,13 +2,11 @@
     "arch": "m68k",
     "cpu": "M68000",
     "data-layout": "E-m:e-p:32:16:32-i8:8:8-i16:16:16-i32:16:32-n8:16:32-a:0:16-S16",
-    "dynamic-linking": true,
-    "has-rpath": true,
-    "has-thread-local": true,
-    "llvm-target": "m68k-unknown-none-elf",
+    "llvm-target": "m68k-unknown-none",
     "max-atomic-width": 0,
+    "os": "none",
     "panic-strategy": "abort",
     "target-endian": "big",
     "target-mcount": "_mcount",
     "target-pointer-width": "32"
-  }
+}

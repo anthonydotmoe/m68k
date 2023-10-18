@@ -1,6 +1,7 @@
 //! Startup code and minimal runtime for m68k processors.
 
 #![no_std]
+#![no_main]
 #![feature(asm_experimental_arch)]
 
 extern crate m68k_rt_macros as macros;
@@ -64,6 +65,8 @@ cfg_global_asm! {
 
 pub use macros::entry;
 
+pub use macros::pre_init;
+
 pub enum Exception {
     BusError,
     AddressError,
@@ -110,6 +113,21 @@ pub union Vector {
     handler: unsafe extern "C" fn(),
     reserved: usize,
 }
+
+#[link_section = ".vector_table.reset_vector"]
+#[no_mangle]
+pub static __RESET_VECTOR: unsafe extern "C" fn() -> ! = Reset;
+
+#[doc(hidden)]
+#[no_mangle]
+pub unsafe extern "C" fn DefaultHandler_() -> ! {
+    #[allow(clippy::empty_loop)]
+    loop {}
+}
+
+#[doc(hidden)]
+#[no_mangle]
+pub unsafe extern "C" fn DefaultPreInit() {}
 
 #[link_section = ".vector_table.exceptions"]
 #[no_mangle]

@@ -15,6 +15,3 @@ m68k-rt-macros = { path = "macros", version = "0.1.0" }
 m68k = { version = "0.1.0", path = ".." }
 panic-halt = "0.2.0"
 # m68k-semihosting??
-
-[build]
-target = "../target.json"
