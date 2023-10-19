@@ -6,7 +6,7 @@
 #![no_std]
 
 extern crate m68k_rt as rt;
-extern crate panic_halt;
+extern crate panic_abort;
 
 use rt::entry;
 

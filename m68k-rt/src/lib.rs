@@ -6,8 +6,8 @@
 
 extern crate m68k_rt_macros as macros;
 
+use core::arch::asm;
 use core::arch::global_asm;
-use core::fmt;
 
 /// Parse cfg attributes inside a global_asm call.
 macro_rules! cfg_global_asm {
@@ -63,8 +63,90 @@ cfg_global_asm! {
         illegal",
 }
 
+
+/// Attribute to declare the entry point of the program
+///
+/// The specified function will be called by the reset handler *after* RAM has been initialized.
+///
+/// The type of the specified function must be `[unsafe] fn() -> !` (never ending function)
+///
+/// # Properties
+///
+/// The entry point will be called by the reset handler. The program can't reference to the entry
+/// point, much less invoke it.
+///
+/// `static mut` variables declared within the entry point are safe to access. The compiler can't
+/// prove this is safe so the attribute will help by making a transformation to the source code: for
+/// this reason a variable like `static mut FOO: u32` will become `let FOO: &'static mut u32;`. Note
+/// that `&'static mut` references have move semantics.
+///
+/// # Examples
+///
+/// - Simple entry point
+///
+/// ``` no_run
+/// # #![no_main]
+/// # use m68k_rt::entry;
+/// #[entry]
+/// fn main() -> ! {
+///     loop {
+///         /* .. */
+///     }
+/// }
+/// ```
+///
+/// - `static mut` variables local to the entry point are safe to modify.
+///
+/// ``` no_run
+/// # #![no_main]
+/// # use m68k_rt::entry;
+/// #[entry]
+/// fn main() -> ! {
+///     static mut FOO: u32 = 0;
+///
+///     let foo: &'static mut u32 = FOO;
+///     assert_eq!(*foo, 0);
+///     *foo = 1;
+///     assert_eq!(*foo, 1);
+///
+///     loop {
+///         /* .. */
+///     }
+/// }
+/// ```
 pub use macros::entry;
 
+/// Attribute to mark which function will be called at the beginning of the reset handler.
+///
+/// **IMPORTANT**: This attribute can appear at most *once* in the dependency graph.
+///
+/// The function must have the signature of `unsafe fn()`.
+///
+/// # Safety
+///
+/// The function will be called before memory is initialized, as soon as possible after reset. Any
+/// access of memory, including any static variables, will result in undefined behavior.
+///
+/// **Warning**: Due to [rvalue static promotion][rfc1414] static variables may be accessed whenever
+/// taking a reference to a constant. This means that even trivial expressions such as `&1` in the
+/// `#[pre_init]` function *or any code called by it* will cause **immediate undefined behavior**.
+///
+/// Users are advised to only use the `#[pre_init]` feature when absolutely necessary as these
+/// constraints make safe usage difficult.
+///
+/// # Examples
+///
+/// ```
+/// # use m68k_rt::pre_init;
+/// #[pre_init]
+/// unsafe fn before_main() {
+///     // do something here
+/// }
+///
+/// # fn main() {}
+/// ```
+///
+/// [rfc1414]: https://github.com/rust-lang/rfcs/blob/master/text/1414-rvalue_static_promotion.md
 pub use macros::pre_init;
 
 pub enum Exception {

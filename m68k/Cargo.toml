@@ -1,0 +1,22 @@
+[package]
+authors = [
+    "Anthony <anthony@anthony.moe>"
+]
+categories = ["embedded", "hardware-support", "no-std"]
+name = "m68k"
+version = "0.1.0"
+edition = "2021"
+links = "m68k" # prevent multiple versions of this crate to be linked together
+
+[dependencies]
+# volatile-register = "0.2.1"
+critical-section = "1.1.2"
+# bitfield = "0.14.0"
+
+[features]
+critical-section-single-core = ["critical-section/restore-state-u8"]
+
+[package.metadata.docs.rs]
+targets = [
+    "m68000-unknown-none"
+]

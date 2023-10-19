@@ -1,0 +1,12 @@
+[package]
+authors = [
+    "Anthony <anthony@anthony.moe"
+]
+categories = ["embedded", "no-std"]
+name = "m68k-nano"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+m68k = { path = "../m68k", features = ["critical-section-single-core"] }
+volatile-register = "0.2.1"
