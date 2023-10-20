@@ -8,6 +8,7 @@ extern crate m68k_rt_macros as macros;
 
 use core::arch::asm;
 use core::arch::global_asm;
+use core::fmt;
 
 /// Parse cfg attributes inside a global_asm call.
 macro_rules! cfg_global_asm {
@@ -148,6 +149,188 @@ pub use macros::entry;
 ///
 /// [rfc1414]: https://github.com/rust-lang/rfcs/blob/master/text/1414-rvalue_static_promotion.md
 pub use macros::pre_init;
+
+/// Attribute to declare an exception handler
+///
+/// # Syntax
+///
+/// ```
+/// # use m68k_rt::exception;
+/// #[exception]
+/// fn SysTick() {
+///     // ..
+/// }
+///
+/// # fn main() {}
+/// ```
+///
+/// where the name of the function must be one of:
+///
+/// - `DefaultHandler`
+/// - `NonMaskableInt`
+/// - `HardFault`
+/// - `MemoryManagement` (a)
+/// - `BusFault` (a)
+/// - `UsageFault` (a)
+/// - `SecureFault` (b)
+/// - `SVCall`
+/// - `DebugMonitor` (a)
+/// - `PendSV`
+/// - `SysTick`
+///
+/// (a) Not available on Cortex-M0 variants (`thumbv6m-none-eabi`)
+///
+/// (b) Only available on ARMv8-M
+///
+/// # Usage
+///
+/// ## HardFault handler
+///
+/// `#[exception(trampoline = true)] unsafe fn HardFault(..` sets the hard fault handler.
+/// If the trampoline parameter is set to true, the handler must have signature `unsafe fn(&ExceptionFrame) -> !`.
+/// If set to false, the handler must have signature `unsafe fn() -> !`.
+///
+/// This handler is not allowed to return as that can cause undefined behavior.
+///
+/// To maintain backwards compatibility the attribute can be used without trampoline parameter (`#[exception]`),
+/// which sets the trampoline to true.
+///
+/// ## Default handler
+///
+/// `#[exception] unsafe fn DefaultHandler(..` sets the *default* handler. All exceptions which have
+/// not been assigned a handler will be serviced by this handler. This handler must have signature
+/// `unsafe fn(irqn: i16) [-> !]`. `irqn` is the IRQ number (See CMSIS); `irqn` will be a negative
+/// number when the handler is servicing a core exception; `irqn` will be a positive number when the
+/// handler is servicing a device specific exception (interrupt).
+///
+/// ## Other handlers
+///
+/// `#[exception] fn Name(..` overrides the default handler for the exception with the given `Name`.
+/// These handlers must have signature `[unsafe] fn() [-> !]`. When overriding these other exception
+/// it's possible to add state to them by declaring `static mut` variables at the beginning of the
+/// body of the function. These variables will be safe to access from the function body.
+///
+/// # Properties
+///
+/// Exception handlers can only be called by the hardware. Other parts of the program can't refer to
+/// the exception handlers, much less invoke them as if they were functions.
+///
+/// `static mut` variables declared within an exception handler are safe to access and can be used
+/// to preserve state across invocations of the handler. The compiler can't prove this is safe so
+/// the attribute will help by making a transformation to the source code: for this reason a
+/// variable like `static mut FOO: u32` will become `let FOO: &mut u32;`.
+///
+/// # Safety
+///
+/// It is not generally safe to register handlers for non-maskable interrupts. On Cortex-M,
+/// `HardFault` is non-maskable (at least in general), and there is an explicitly non-maskable
+/// interrupt `NonMaskableInt`.
+///
+/// The reason for that is that non-maskable interrupts will preempt any currently running function,
+/// even if that function executes within a critical section. Thus, if it was safe to define NMI
+/// handlers, critical sections wouldn't work safely anymore.
+///
+/// This also means that defining a `DefaultHandler` must be unsafe, as that will catch
+/// `NonMaskableInt` and `HardFault` if no handlers for those are defined.
+///
+/// The safety requirements on those handlers is as follows: The handler must not access any data
+/// that is protected via a critical section and shared with other interrupts that may be preempted
+/// by the NMI while holding the critical section. As long as this requirement is fulfilled, it is
+/// safe to handle NMIs.
+///
+/// # Examples
+///
+/// - Setting the default handler
+///
+/// ```
+/// use m68k_rt::exception;
+///
+/// #[exception]
+/// unsafe fn DefaultHandler(irqn: i16) {
+///     println!("IRQn = {}", irqn);
+/// }
+///
+/// # fn main() {}
+/// ```
+///
+/// - Overriding the `SysTick` handler
+///
+/// ```
+/// use m68k_rt::exception;
+///
+/// #[exception]
+/// fn SysTick() {
+///     static mut COUNT: i32 = 0;
+///
+///     // `COUNT` is safe to access and has type `&mut i32`
+///     *COUNT += 1;
+///
+///     println!("{}", COUNT);
+/// }
+///
+/// # fn main() {}
+/// ```
+// pub use macros::exception;
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct LowerExceptionFrame {
+    sr: u16,
+    pc: u32,
+}
+
+#[derive(Clone, Copy)]
+pub struct AccessInformation {
+    bits: u16,
+}
+
+impl fmt::Debug for AccessInformation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let fc = (self.bits & 0b111) as u8;
+        let ins = self.bits & (1 << 3) == 0;
+        let rw = self.bits & (1 << 4) != 0;
+        
+        f.debug_struct("Access Information")
+            .field("read", &rw)
+            .field("instruction", &ins)
+            .field("fc", &fc)
+            .finish()
+    }
+}
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct ExceptionFrame {
+    
+    /// Information about access: R/W, I/N, FC
+    ai: AccessInformation,
+    
+    /// Access Address
+    aa: u32,
+
+    ir: u16,
+    sr: u16,
+    pc: u32,
+}
+
+impl fmt::Debug for ExceptionFrame {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        struct Hex(u32);
+        impl fmt::Debug for Hex {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "0x{:08x}", self.0)
+            }
+        }
+        f.debug_struct("ExceptionFrame")
+            .field("Access Information", &self.ai)
+            .field("Access Address", &Hex(self.aa))
+            .field("Instruction Register", &Hex(self.ir as u32))
+            // TODO: Impl Debug for Sr
+            .field("Status Register", &Hex(self.sr as u32))
+            .field("Program Counter", &Hex(self.pc))
+            .finish()
+    }
+}
 
 pub enum Exception {
     BusError,
