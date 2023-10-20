@@ -28,7 +28,7 @@ pub unsafe trait InterruptNumber: Copy {
 #[inline]
 pub fn disable() {
     unsafe {
-        asm!("ori.w #0x0700,sr", options(nomem, nostack, preserves_flags));
+        asm!("ori.w #0x0700,%sr", options(nomem, nostack, preserves_flags));
     }
     
     // Ensure no subsequent memory accesses are reordered to before interrupts are disabled.
@@ -43,13 +43,16 @@ pub fn disable() {
 #[inline]
 pub unsafe fn set(mask: u8) {
     let mask_shifted: u16 = (mask as u16) << 8;
-    asm!("and.i #$F8FF,sr");
-    asm!("ori.w {},sr", in(reg) mask_shifted);
+    asm!(
+        "andi.w #0xF8FF,%sr",
+        "ori.w {},%sr",
+        in(reg) mask_shifted,
+    );
 }
 
 /// Get the interrupt mask
 pub unsafe fn get() -> u8 {
     let sr: u16;
-    asm!("move.w sr,{}", out(reg) sr);
+    asm!("move.w %sr,{}", out(reg) sr);
     ((sr >> 8) & 0x07) as u8
 }
