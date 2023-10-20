@@ -1,12 +1,19 @@
 # m68k
 
-A work in progress copy of the [cortex-m](https://github.com/rust-embedded/cortex-m) crate
-for use with my [68040pc](https://github.com/anthonydotmoe/68040pc) computer project. I
-want to try writing the ROM boot program in Rust.
+A work in progress copy of the
+[cortex-m](https://github.com/rust-embedded/cortex-m) crate for use with my
+[68040pc](https://github.com/anthonydotmoe/68040pc) computer project.
+
+## Status
+
+I believe this won't work with mainline Rust. If I do anything that starts
+getting stuff done then `rustc` [crashes](https://github.com/rust-lang/rust/issues/115886#issuecomment-1722200801).
+
+I did have luck making something before implementing critical_section:
 
 1. Install Rust nightly and `rust-src`
 1. Install [m68k-elf-gcc](https://aur.archlinux.org/packages/m68k-elf-gcc)
-1. Try to build minimal program: `cargo build -Z build-std=core -p m68k-rt --examples --release`
+1. Try to build minimal program: `cargo build -p m68k-rt --examples --release`
 1. Inspect the output file: `m68k-elf-objdump -d target/m68k-unknown-none/release/examples/minimal`
 1. Success!
 
@@ -35,5 +42,7 @@ Disassembly of section .text:
 
 ## Problems
 
-- Can't change the target CPU to M68040: `rustc` crashes with `SIGILL`
+- `rustc` crashes with `SIGILL` when:
+  - Building with M68040 CPU type
+  - Building m68k
 - Can't build in debug mode: The linker can't find a panic/unroll routine.
