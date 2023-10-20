@@ -13,6 +13,9 @@ mod macros;
 
 pub mod asm;
 
+pub mod register;
+
+/*
 pub mod interrupt;
 
 #[cfg(feature = "critical-section-single-core")]
@@ -23,3 +26,4 @@ mod critical_section;
 pub mod _export {
     pub use critical_section;
 }
+*/
