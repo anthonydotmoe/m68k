@@ -1,15 +1,16 @@
 [build]
 target = "m68k-unknown-none.json"
 
-# [target.m68k-unknown-none]
 rustflags = [
     # LLD (shipped with the Rust toolchain) is used as the default linker
-    "-C", "link-arg=-Tlink.x",
+    "-C", "linker=rust-lld",
     
     # If you run into problems, use this instead
-    "-C", "linker=m68k-elf-ld",
+    # "-C", "linker=m68k-elf-ld",
+
+    # Make sure the linker includes linker script
+    "-C", "link-arg=-Tlink.x",
 ]
-# linker = "rust-lld"
 
 [unstable]
 build-std = ["core"]
