@@ -4,6 +4,7 @@ members = [
     "m68k",
     "m68k-rt",
     "m68k-nano",
+    "m68k-rom",
 ]
 
 [profile.dev]

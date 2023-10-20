@@ -24,6 +24,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "m68k-rom"
+version = "0.1.0"
+dependencies = [
+ "m68k-rt",
+ "panic-abort",
+]
+
+[[package]]
 name = "m68k-rt"
 version = "0.1.0"
 dependencies = [
