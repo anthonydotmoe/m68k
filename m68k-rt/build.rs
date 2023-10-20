@@ -1,9 +1,14 @@
 use std::fs::File;
 use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::{env, ffi::OsStr};
+use std::path::PathBuf;
+use std::env;
 
 fn main() {
+    
+    /*  This code was used in cortex-m-rt to take the first bit of the target
+     *  json filename and use it to determine which linker script snippet to
+     *  inject.
+
     let mut target = env::var("TARGET").unwrap();
     
     // When using a custom target JSON, `$TARGET` contains the path to that JSON file. By
@@ -16,10 +21,12 @@ fn main() {
             .map_or(target.clone(), |stem| stem.to_str().unwrap().to_string());
     }
     
+    */
+    
     // Put the linker script somewhere the linker can find it
     let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
     let link_x = include_bytes!("link.x.in");
-    let mut f = if env::var_os("CARGO_FEATURE_DEVICE").is_some() {
+    if env::var_os("CARGO_FEATURE_DEVICE").is_some() {
         let mut f = File::create(out.join("link.x")).unwrap();
         
         f.write_all(link_x).unwrap();
