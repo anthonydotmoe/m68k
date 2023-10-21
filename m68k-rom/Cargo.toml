@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 m68k-rt = { path = "../m68k-rt" }
+m68k = { path = "../m68k" }
 panic-abort = "0.3.2"

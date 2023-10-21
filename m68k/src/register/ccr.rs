@@ -51,7 +51,7 @@ impl Ccr {
         self.bits & (1 << 4) != 0
     }
 }
-
+/*
 /// Read the CCR register
 #[inline]
 pub fn read() -> Ccr {
@@ -66,3 +66,4 @@ pub unsafe fn write(ccr: Ccr) {
     let ccr = ccr.bits();
     asm!("move {},%ccr", in(reg) ccr, options(nomem, nostack));
 }
+*/

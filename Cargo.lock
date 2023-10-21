@@ -27,6 +27,7 @@ dependencies = [
 name = "m68k-rom"
 version = "0.1.0"
 dependencies = [
+ "m68k",
  "m68k-rt",
  "panic-abort",
 ]
